@@ -36,4 +36,6 @@
 *.exe
 *.out
 *.app
+
 /Debug/
+*/out/
