@@ -75,7 +75,7 @@ void analyse_accums(int *scale_arr,	int scale_count,
 					float mask_tolerance,
 		            std::string file_out,
 		            float **accum_list,
-		            int framerate) {
+		            float fps) {
 
 	int main_scale = scale_arr[0]; // the largest length-scale
 
@@ -114,7 +114,7 @@ void analyse_accums(int *scale_arr,	int scale_count,
             float *ISF = analyseFFTDevice(d_accum_tmp, d_masks, h_pixel_counts, normalisation, tau_count, lambda_count, tile_count, scale, scale);
 
             // Finally write I(q, tau) to file
-            writeIqtToFile(tmp_filename, ISF, lambda_arr, lambda_count, tau_arr, tau_count, framerate);
+            writeIqtToFile(tmp_filename, ISF, lambda_arr, lambda_count, tau_arr, tau_count, fps);
         }
     }
 }
@@ -205,23 +205,29 @@ void analyseChunk(cufftComplex **d_fft_buffer1,
 ////////////////////////////////////////////////////////////////////////////////
 //  Main multi-DDM function
 ////////////////////////////////////////////////////////////////////////////////
+
 void runDDM(std::string file_in,
             std::string file_out,
-            int *tau_vector,	int tau_count,
-            float *lambda_arr, 	int lambda_count,
-            int *scale_vector,  int scale_count,
-            int x_offset, 		int y_offset,
+            int *tau_vector,
+			int tau_count,
+            float *lambda_arr,
+			int lambda_count,
+            int *scale_vector,
+			int scale_count,
+            int x_offset,
+			int y_offset,
             int total_frames,
+			int frame_offset,
             int chunk_frame_count,
             bool multistream,
             bool use_webcam,
             int webcam_idx,
             float mask_tolerance,
             bool is_movie_file,
-            int explicit_frame_rate,
-            int use_frame_rate,
+            bool use_index_fps,
+			bool use_explicit_fps,
+			float explicit_fps,
             int dump_accum_after,
-			bool use_explicit_frame_rate,
 			bool benchmark_mode) {
 
     auto start_time = std::chrono::high_resolution_clock::now();
@@ -325,20 +331,16 @@ void runDDM(std::string file_in,
     FILE *moviefile;
     cv::VideoCapture cap;
 
-    int frame_rate;
-
     if (benchmark_mode) {
     	info.w = scale_vector[0];
     	info.h = scale_vector[0];
     	info.bpp = 1;
-    	frame_rate = 1;
+    	info.fps = 1.0;
 
     } else if (is_movie_file) { // if we have a .moviefile folder we open with own custom reader
         moviefile = fopen(file_in.c_str(), "rb");
         conditionAssert(moviefile != NULL, "couldn't open .movie file", true);
-
-        info = initFile(moviefile);
-        frame_rate = explicit_frame_rate;
+        info = initFile(moviefile, frame_offset);
 
     } else { // openCV
         if (use_webcam) {
@@ -351,7 +353,7 @@ void runDDM(std::string file_in,
 
         info.w = cap.get(cv::CAP_PROP_FRAME_WIDTH);
         info.h = cap.get(cv::CAP_PROP_FRAME_HEIGHT);
-        frame_rate = cap.get(cv::CAP_PROP_FPS);
+        info.fps = static_cast<float>(cap.get(cv::CAP_PROP_FPS)); // cast from double to float
 
         cv::Mat test_img;
         cap >> test_img;
@@ -361,16 +363,22 @@ void runDDM(std::string file_in,
         int type = test_img.type();
         info.bpp = (type % 8) ? 1 : test_img.channels();
 
-        if (!use_webcam)
+        if (!use_webcam) {
             cap = cv::VideoCapture(file_in); // re-open so can view first frame again
+        }
+
+        // Offset the video by frame_offset frames
+        for (int i = 0; i < frame_offset; i++) {
+        	cap >> test_img;
+        }
     }
 
 
-    if (!use_frame_rate) {
-        frame_rate = 1;  // using raw tau indices is same as FPS = 1
+    if (use_index_fps) { // if flag to use frame indices as frame-rate (same as setting FPS to 1)
+        info.fps = 1.0;
     }
-    if (use_explicit_frame_rate) {
-    	frame_rate = explicit_frame_rate;
+    if (use_explicit_fps) { // if flag to explicitly specify the video frame-rate
+    	info.fps = explicit_fps;
     }
 
     info.x_off = x_offset;
@@ -397,7 +405,7 @@ void runDDM(std::string file_in,
     const int main_scale = scale_vector[0];
     int chunks_already_parsed = 0;
 
-    verbose("[Video info - (%d x %d), %d Frames, %d FPS]\n", info.w, info.h, total_frames, frame_rate);
+    verbose("[Video info - (%d x %d), %d Frames (offset %d), %.4f FPS]\n", info.w, info.h, total_frames, frame_offset, info.fps);
 
     // streams
 
@@ -705,7 +713,7 @@ void runDDM(std::string file_in,
 
             std::string tmp_name = file_out + "_t" + std::to_string(chunks_already_parsed / dump_accum_after) + "_";
 
-            analyse_accums(scale_vector, scale_count, lambda_arr, lambda_count, tau_vector, tau_count, tmp_frame_count, mask_tolerance, tmp_name, d_accum_list_cur, frame_rate);
+            analyse_accums(scale_vector, scale_count, lambda_arr, lambda_count, tau_vector, tau_count, tmp_frame_count, mask_tolerance, tmp_name, d_accum_list_cur, info.fps);
 
             verbose("[Purging Accumulator]\n");
 
@@ -761,7 +769,7 @@ void runDDM(std::string file_in,
     verbose("Analysis.\n");
 
     int frames_left = total_frames - chunks_already_parsed * chunk_frame_count;
-    analyse_accums(scale_vector, scale_count, lambda_arr, lambda_count, tau_vector, tau_count, frames_left, mask_tolerance, file_out, d_accum_list_cur, frame_rate);
+    analyse_accums(scale_vector, scale_count, lambda_arr, lambda_count, tau_vector, tau_count, frames_left, mask_tolerance, file_out, d_accum_list_cur, info.fps);
 
     cudaDeviceSynchronize();
     cudaFree(d_accum_1);
