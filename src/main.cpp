@@ -47,10 +47,15 @@ void runDDM(std::string file_in,
 			bool use_webcam,
 			int webcam_idx,
 			float q_tolerance,
+<<<<<<< HEAD
 			bool use_movie_file,
 			bool use_index_fps,
 			bool use_explicit_fps,
 			float explicit_fps,
+=======
+			int frame_rate,
+			int use_frame_rate,
+>>>>>>> 62e055e55f99d69d07f483402b951e7c543bbdbf
 			int dump_accum_after,
 			bool benchmark_mode);
 
@@ -82,8 +87,12 @@ void printHelp() {
 			"  -Z           Turn off multi-steam (smaller memory footprint - slower execution time).\n"
 			"  -t INT       Set the q-vector mask tolerance - percent (integer only) (default 20 i.e. radial mask (1 - 1.2) * q).\n"
 			"  -C INT	    Set main chunk frame count, a buffer 3x chunk frame count will be allocated in memory (default 30 frames).\n"
+<<<<<<< HEAD
 			"  -G SIZE      Sub-divide analysis, buffer will be output and purged every SIZE chunks\n"
     		"  -M			Set if using movie-file format.\n"
+=======
+			"  -G SIZE          Sub-divide analysis, buffer will be output and purged every SIZE chunks\n"
+>>>>>>> 62e055e55f99d69d07f483402b951e7c543bbdbf
     		"  -F FPS 		Force the analysis to assume a specific frame-rate, over-rides other options.");
 }
 
@@ -188,10 +197,13 @@ int main(int argc, char **argv) {
                 params.chunk_length = atoi(optarg);
                 continue;
 
+<<<<<<< HEAD
             case 'M':
 				params.use_movie_file = true;
                 continue;
 
+=======
+>>>>>>> 62e055e55f99d69d07f483402b951e7c543bbdbf
             case 'G':
                 params.rolling_purge = atoi(optarg);
                 continue;
@@ -295,9 +307,16 @@ int main(int argc, char **argv) {
 		   params.use_webcam,
 		   params.webcam_idx,
 		   params.q_tolerence,
+<<<<<<< HEAD
 		   params.use_movie_file,
 		   params.use_index_fps,
 		   params.use_explicit_fps,
+=======
+//		   params.use_movie_file,
+		   params.frame_rate,
+		   params.frame_rate,
+		   params.rolling_purge,
+>>>>>>> 62e055e55f99d69d07f483402b951e7c543bbdbf
 		   params.explicit_fps,
 		   params.rolling_purge,
 		   params.benchmark_mode);
